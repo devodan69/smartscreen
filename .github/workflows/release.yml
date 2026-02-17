@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: smartscreen-windows
+          - os: macos-latest
+            artifact_name: smartscreen-macos
+          - os: ubuntu-latest
+            artifact_name: smartscreen-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          pip install pyinstaller
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+          curl -L -o installers/linux/appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x installers/linux/appimagetool
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Build Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./installers/windows/build_windows.ps1
+      - name: Build macOS artifacts
+        if: runner.os == 'macOS'
+        run: bash installers/macos/build_macos.sh
+      - name: Build Linux artifacts
+        if: runner.os == 'Linux'
+        run: bash installers/linux/build_linux.sh
+      - name: Generate checksums
+        shell: bash
+        run: |
+          mkdir -p dist/release
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          root = Path("dist/release")
+          files = [p for p in root.glob("*") if p.is_file()]
+          lines = []
+          for path in sorted(files):
+              h = hashlib.sha256()
+              with path.open("rb") as fh:
+                  for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                      h.update(chunk)
+              lines.append(f"{h.hexdigest()} {path.name}")
+          (root / "checksums.txt").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          PY
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/release/**
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      - name: Consolidate artifacts
+        run: |
+          mkdir -p release
+          find release-artifacts -type f ! -name checksums.txt -exec cp {} release/ \;
+      - name: Generate release checksums
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root = Path("release")
+          files = sorted([p for p in root.iterdir() if p.is_file()])
+          lines = []
+          for path in files:
+              h = hashlib.sha256()
+              with path.open("rb") as fh:
+                  for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                      h.update(chunk)
+              lines.append(f"{h.hexdigest()} {path.name}")
+          (root / "checksums.txt").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+          PY
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartscreen"
+version = "0.1.0"
+description = "SmartScreen cross-platform desktop monitor for USB serial 800x480 displays"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "DGE Projects" }]
+dependencies = [
+  "PySide6>=6.7",
+  "pyserial>=3.5",
+  "psutil>=5.9",
+  "Pillow>=10.0",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+gpu = ["nvidia-ml-py>=12.550.52"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0"]
+
+[project.scripts]
+smartscreen = "smartscreen_app.cli:main"
+smartscreen-bootstrap = "smartscreen_bootstrap.cli:main"
+smartscreen-installer = "smartscreen_bootstrap.gui:main"
+
+[tool.setuptools.packages.find]
+where = [
+  "apps/desktop",
+  "packages/display_protocol",
+  "packages/telemetry",
+  "packages/renderer",
+  "packages/core",
+  "installers/bootstrap",
+]
+
+[tool.setuptools.package-data]
+smartscreen_app = ["qml/*.qml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
