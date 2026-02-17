@@ -67,6 +67,20 @@ def _cpu_temp_c() -> float | None:
     return None
 
 
+def _cpu_freq_mhz() -> float | None:
+    fn = getattr(psutil, "cpu_freq", None)
+    if fn is None:
+        return None
+    try:
+        freq = fn()
+    except Exception:
+        return None
+    if freq is None:
+        return None
+    current = getattr(freq, "current", None)
+    return float(current) if current is not None else None
+
+
 @dataclass
 class _CounterSnapshot:
     ts: float
@@ -99,11 +113,10 @@ class TelemetryProvider:
         elapsed = max(now_monotonic - self._prev.ts, 1e-6)
 
         cpu_percent = float(psutil.cpu_percent(interval=None))
-        freq = psutil.cpu_freq()
         cpu = CpuMetrics(
             percent=cpu_percent,
             temp_c=_cpu_temp_c(),
-            freq_mhz=(float(freq.current) if freq else None),
+            freq_mhz=_cpu_freq_mhz(),
         )
 
         vm = psutil.virtual_memory()
