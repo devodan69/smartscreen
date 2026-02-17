@@ -83,6 +83,11 @@ Release workflow is free-first by default:
 
 Linux GPG setup guide: `installers/linux/SETUP_GPG.md`
 Linux secret helper script: `installers/linux/configure_gpg_signing.sh`
+Optional hardware runner guide: `docs/SELF_HOSTED_RUNNER.md`
+
+### Windows distribution (Option A)
+
+Windows artifacts are currently published unsigned by default. End users will likely see SmartScreen/Unknown Publisher prompts until trusted Windows code-signing is added.
 
 ## Tests
 
