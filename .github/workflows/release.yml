@@ -101,14 +101,21 @@ jobs:
         run: bash installers/macos/build_macos.sh
 
       - name: Verify macOS signatures and notarization
-        if: runner.os == 'macOS' && env.APPLE_SIGN_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != ''
+        if: runner.os == 'macOS' && env.APPLE_SIGN_IDENTITY != ''
         run: |
           set -euo pipefail
           codesign --verify --deep --strict dist/SmartScreen.app
           codesign --verify --deep --strict dist/SmartScreenInstaller.app
-          for f in dist/release/*.dmg; do
-            xcrun stapler validate "$f"
-          done
+          if [[ -f dist/release/.notarization_succeeded ]]; then
+            for f in dist/release/*.dmg; do
+              xcrun stapler validate "$f"
+            done
+          elif [[ "${SMARTSCREEN_REQUIRE_SIGNING}" == "1" ]]; then
+            echo "SMARTSCREEN_REQUIRE_SIGNING=1 but notarization marker missing." >&2
+            exit 1
+          else
+            echo "Notarization marker missing; skipping stapler validation in free-first mode."
+          fi
 
       - name: Build Linux artifacts
         if: runner.os == 'Linux'

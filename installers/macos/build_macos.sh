@@ -34,10 +34,34 @@ if [[ -n "$identity" ]]; then
   codesign --verify --deep --strict dist/SmartScreenInstaller.app
 
   if [[ -n "$apple_id" && -n "$apple_password" && -n "$apple_team_id" ]]; then
-    xcrun notarytool submit "$app_dmg" --apple-id "$apple_id" --password "$apple_password" --team-id "$apple_team_id" --wait
-    xcrun notarytool submit "$installer_dmg" --apple-id "$apple_id" --password "$apple_password" --team-id "$apple_team_id" --wait
-    xcrun stapler staple "$app_dmg"
-    xcrun stapler staple "$installer_dmg"
+    notarize_file() {
+      local target="$1"
+      local submit_json status submission_id
+
+      submit_json="$(xcrun notarytool submit "$target" --apple-id "$apple_id" --password "$apple_password" --team-id "$apple_team_id" --wait --output-format json)"
+      status="$(python -c "import json,sys; print(json.load(sys.stdin).get('status', ''))" <<< "$submit_json")"
+      if [[ "$status" != "Accepted" ]]; then
+        submission_id="$(python -c "import json,sys; print(json.load(sys.stdin).get('id', ''))" <<< "$submit_json")"
+        if [[ -n "$submission_id" ]]; then
+          xcrun notarytool log "$submission_id" --apple-id "$apple_id" --password "$apple_password" --team-id "$apple_team_id" > "${target}.notary.json" || true
+          echo "Saved notarization log to ${target}.notary.json" >&2
+        fi
+        echo "Notarization status for ${target}: ${status}" >&2
+        return 1
+      fi
+      return 0
+    }
+
+    if notarize_file "$app_dmg" && notarize_file "$installer_dmg"; then
+      xcrun stapler staple "$app_dmg"
+      xcrun stapler staple "$installer_dmg"
+      touch dist/release/.notarization_succeeded
+    elif [[ "$require_signing" == "1" ]]; then
+      echo "SMARTSCREEN_REQUIRE_SIGNING=1 but notarization failed" >&2
+      exit 1
+    else
+      echo "Warning: notarization failed; continuing because SMARTSCREEN_REQUIRE_SIGNING=0" >&2
+    fi
   elif [[ "$require_signing" == "1" ]]; then
     echo "SMARTSCREEN_REQUIRE_SIGNING=1 but notarization credentials missing" >&2
     exit 1
