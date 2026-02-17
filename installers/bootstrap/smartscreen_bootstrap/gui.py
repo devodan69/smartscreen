@@ -10,8 +10,14 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from .resolver import resolve_target
-from .service import download_installer, run_installer
+try:
+    # Package import path (normal module execution).
+    from .resolver import resolve_target
+    from .service import download_installer, run_installer
+except ImportError:
+    # Script/frozen execution path (e.g. PyInstaller entrypoint from file path).
+    from smartscreen_bootstrap.resolver import resolve_target
+    from smartscreen_bootstrap.service import download_installer, run_installer
 
 
 class InstallerWindow:
