@@ -24,6 +24,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.command, "send-test-pattern")
         self.assertEqual(args.pattern, "quadrants")
 
+    def test_updates_check_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["updates", "check", "--channel", "beta"])
+        self.assertEqual(args.command, "updates")
+        self.assertEqual(args.updates_cmd, "check")
+        self.assertEqual(args.channel, "beta")
+
+    def test_replay_command(self):
+        parser = build_parser()
+        args = parser.parse_args(["replay", "--transcript", "sample.jsonl"])
+        self.assertEqual(args.command, "replay")
+        self.assertEqual(args.transcript, "sample.jsonl")
+
 
 if __name__ == "__main__":
     unittest.main()

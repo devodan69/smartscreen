@@ -1,0 +1,5 @@
+{"ts_utc":"2026-02-17T12:00:00Z","dir":"host_to_device","payload_hex":"454545454545"}
+{"ts_utc":"2026-02-17T12:00:00Z","dir":"device_to_host","payload_hex":"020202020202"}
+{"ts_utc":"2026-02-17T12:00:01Z","dir":"host_to_device","payload_hex":"00000000007966032001E000000000"}
+{"ts_utc":"2026-02-17T12:00:01Z","dir":"host_to_device","payload_hex":"00000C7DDFC5"}
+{"ts_utc":"2026-02-17T12:00:01Z","dir":"host_to_device","payload_hex":"AABBCCDDEEFF"}

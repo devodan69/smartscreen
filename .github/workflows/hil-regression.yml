@@ -1,0 +1,27 @@
+name: HIL Regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+
+jobs:
+  hardware-regression:
+    runs-on: [self-hosted, smartscreen-hil]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Device discovery
+        run: smartscreen list-devices
+      - name: Pattern smoke test
+        run: smartscreen send-test-pattern --pattern quadrants
+      - name: Protocol replay sanity
+        run: smartscreen replay --transcript tests/transcripts/rev_a_handshake_frame.jsonl
+      - name: Streaming budget benchmark
+        run: smartscreen benchmark --seconds 120

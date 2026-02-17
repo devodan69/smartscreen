@@ -5,21 +5,23 @@ Modern cross-platform desktop app for USB serial smart displays (`VID:PID 1A86:5
 ## Features
 
 - Windows, macOS, and Linux desktop app (PySide6 + QML)
-- Local-only runtime (no telemetry upload)
-- Serial protocol implementation for rev-A style display transport
-- Adaptive frame updates (full frame + dirty-rect)
-- Built-in modern themes and dashboard preview
-- Tray/menubar support, launch-at-login toggle
-- One bootstrap installer entrypoint scripts
+- First-run onboarding wizard (device scan, permissions hints, startup toggle, test pattern)
+- Local-only runtime by default (manual-only update checks)
+- Protocol replay regression support from captured JSONL transcripts
+- Adaptive streaming with performance budgeting and degraded-mode recovery
+- Structured local logging + offline diagnostics bundle export
+- Tray/menubar controls and launch-at-login support
+- Free-first release workflow with optional signing/notarization per platform
 
 ## Project Layout
 
 - `apps/desktop/smartscreen_app`: desktop UI and CLI
-- `packages/display_protocol/smartscreen_display`: serial protocol stack
+- `packages/display_protocol/smartscreen_display`: serial protocol stack + replay analyzer
 - `packages/telemetry/smartscreen_telemetry`: system metrics providers
 - `packages/renderer/smartscreen_renderer`: dashboard composition and RGB565 encoding
-- `packages/core/smartscreen_core`: settings and stream controller
+- `packages/core/smartscreen_core`: config, updates, diagnostics, performance, stream controller
 - `installers/bootstrap`: cross-platform installer bootstrap
+- `tests/transcripts`: replay baseline transcripts
 
 ## Quick Start
 
@@ -35,10 +37,12 @@ smartscreen run
 
 ```bash
 smartscreen run
-smartscreen doctor
+smartscreen doctor --export
 smartscreen list-devices
 smartscreen send-test-pattern --pattern quadrants
 smartscreen benchmark --seconds 30
+smartscreen updates check --channel stable
+smartscreen replay --transcript tests/transcripts/rev_a_handshake_frame.jsonl
 ```
 
 ## Device Protocol
@@ -47,7 +51,7 @@ smartscreen benchmark --seconds 30
 - `115200`, `8N1`, `rtscts=true`
 - HELLO (`0x45` x 6), orientation (`0x79`), display window (`0xC5`), raw RGB565 LE stream
 
-## Installer Bootstrap
+## Installer UX
 
 End users should install from release artifacts only (double-click, no terminal):
 
@@ -63,8 +67,22 @@ Direct app binaries are also published:
 
 The bootstrap logic verifies `checksums.txt` before launching installers.
 
-Developer bootstrap helpers remain available under `installers/bootstrap/` and can be run with:
-`smartscreen-installer`
+## CI / Release Notes
+
+Release workflow is free-first by default:
+
+- If signing secrets are absent, unsigned artifacts are still built and published.
+- If signing secrets are present, platform signing/notarization is performed and verified.
+- You can switch back to strict mode by setting `SMARTSCREEN_REQUIRE_SIGNING=1` in your build environment.
+
+### Optional secrets for signed release job
+
+- Windows: `WINDOWS_SIGNING_CERT_BASE64`, `WINDOWS_SIGNING_CERT_PASSWORD`
+- macOS: `APPLE_SIGNING_CERT_BASE64`, `APPLE_SIGNING_CERT_PASSWORD`, `APPLE_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_KEYCHAIN_PASSWORD`
+- Linux: `LINUX_SIGNING_KEY_BASE64` (optional: `LINUX_SIGNING_FINGERPRINT`, `LINUX_SIGNING_KEY_PASSPHRASE`)
+
+Linux GPG setup guide: `installers/linux/SETUP_GPG.md`
+Linux secret helper script: `installers/linux/configure_gpg_signing.sh`
 
 ## Tests
 

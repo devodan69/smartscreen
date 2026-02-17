@@ -8,12 +8,15 @@ from enum import Enum
 
 class ProtocolState(str, Enum):
     DISCONNECTED = "Disconnected"
+    CONNECTING = "Connecting"
     PORT_OPEN = "PortOpen"
     HELLO = "Hello"
     ORIENTATION_SET = "OrientationSet"
     READY = "Ready"
     STREAMING = "Streaming"
+    BACKOFF_WAIT = "BackoffWait"
     RECOVERING = "Recovering"
+    DEGRADED = "Degraded"
 
 
 @dataclass(frozen=True)

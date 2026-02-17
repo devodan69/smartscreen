@@ -48,7 +48,7 @@ make_appimage() {
 
   cat > "$appdir/AppRun" <<EOS
 #!/bin/sh
-HERE="\$(dirname \"\$(readlink -f \"\$0\")\")"
+HERE="\$(dirname "\$(readlink -f "\$0")")"
 exec "\$HERE/usr/bin/${bin_name}" "\$@"
 EOS
   chmod +x "$appdir/AppRun"
@@ -73,3 +73,32 @@ EOS
 
 make_appimage "SmartScreen" "SmartScreen"
 make_appimage "SmartScreenInstaller" "SmartScreenInstaller"
+
+require_signing="${SMARTSCREEN_REQUIRE_SIGNING:-0}"
+gpg_key_b64="${LINUX_SIGNING_KEY_BASE64:-}"
+gpg_fingerprint="${LINUX_SIGNING_FINGERPRINT:-}"
+gpg_passphrase="${LINUX_SIGNING_KEY_PASSPHRASE:-}"
+
+if [[ -n "$gpg_key_b64" ]]; then
+  export GNUPGHOME
+  GNUPGHOME="$(mktemp -d)"
+  trap 'rm -rf "$GNUPGHOME"' EXIT
+
+  echo "$gpg_key_b64" | base64 --decode > "$GNUPGHOME/signing.key"
+  gpg --batch --import "$GNUPGHOME/signing.key"
+
+  if [[ -z "$gpg_fingerprint" ]]; then
+    gpg_fingerprint="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+  fi
+
+  for f in dist/release/*.AppImage; do
+    if [[ -n "$gpg_passphrase" ]]; then
+      gpg --batch --yes --pinentry-mode loopback --passphrase "$gpg_passphrase" --local-user "$gpg_fingerprint" --output "$f.sig" --armor --detach-sign "$f"
+    else
+      gpg --batch --yes --pinentry-mode loopback --local-user "$gpg_fingerprint" --output "$f.sig" --armor --detach-sign "$f"
+    fi
+  done
+elif [[ "$require_signing" == "1" ]]; then
+  echo "SMARTSCREEN_REQUIRE_SIGNING=1 but LINUX_SIGNING_KEY_BASE64 missing" >&2
+  exit 1
+fi
