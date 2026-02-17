@@ -7,7 +7,6 @@ import json
 import os
 import platform
 import plistlib
-import shutil
 import ssl
 import subprocess
 import urllib.request
@@ -150,8 +149,9 @@ def _install_from_macos_dmg(dmg_path: Path) -> int:
                 target_dir.mkdir(parents=True, exist_ok=True)
                 target_app = target_dir / app_src.name
                 if target_app.exists():
-                    shutil.rmtree(target_app)
-                shutil.copytree(app_src, target_app, dirs_exist_ok=True)
+                    subprocess.check_call(["rm", "-rf", str(target_app)])
+                # Preserve app bundle symlinks/metadata so code-signature stays valid.
+                subprocess.check_call(["ditto", str(app_src), str(target_app)])
                 subprocess.call(["xattr", "-dr", "com.apple.quarantine", str(target_app)])
                 subprocess.call(["open", str(target_app)])
                 return 0

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import plistlib
+
 import installers.bootstrap.smartscreen_bootstrap.service as service
 from installers.bootstrap.smartscreen_bootstrap.resolver import Asset
 
@@ -90,3 +92,33 @@ def test_run_installer_uses_macos_dmg_path(monkeypatch, tmp_path) -> None:
 
     code = service.run_installer(dmg_path, silent=False)
     assert code == 0
+
+
+def test_install_from_macos_dmg_uses_ditto(monkeypatch, tmp_path) -> None:
+    dmg_path = tmp_path / "SmartScreen-macos-arm64.dmg"
+    dmg_path.write_bytes(b"fake")
+    mount_dir = tmp_path / "mounted"
+    app_dir = mount_dir / "SmartScreen.app"
+    app_dir.mkdir(parents=True)
+
+    plist_payload = plistlib.dumps({"system-entities": [{"mount-point": str(mount_dir)}]})
+    monkeypatch.setattr(service.subprocess, "check_output", lambda _cmd: plist_payload)
+
+    check_calls: list[list[str]] = []
+    call_calls: list[list[str]] = []
+
+    def fake_check_call(cmd):
+        check_calls.append([str(x) for x in cmd])
+        return 0
+
+    def fake_call(cmd):
+        call_calls.append([str(x) for x in cmd])
+        return 0
+
+    monkeypatch.setattr(service.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(service.subprocess, "call", fake_call)
+
+    code = service._install_from_macos_dmg(dmg_path)
+    assert code == 0
+    assert any(cmd and cmd[0] == "ditto" for cmd in check_calls)
+    assert any(cmd and cmd[0] == "hdiutil" and "detach" in cmd for cmd in call_calls)
