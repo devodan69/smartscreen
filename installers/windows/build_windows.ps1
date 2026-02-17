@@ -20,7 +20,12 @@ $installerOut = "dist/release/SmartScreenInstaller-windows-$arch.exe"
 Copy-Item dist/SmartScreen.exe $appOut -Force
 Copy-Item dist/SmartScreenInstaller.exe $installerOut -Force
 
-$requireSigning = ($env:SMARTSCREEN_REQUIRE_SIGNING -eq "1")
+$windowsSigningPolicy = $env:SMARTSCREEN_REQUIRE_WINDOWS_SIGNING
+if ([string]::IsNullOrWhiteSpace($windowsSigningPolicy)) {
+  $requireSigning = ($env:SMARTSCREEN_REQUIRE_SIGNING -eq "1")
+} else {
+  $requireSigning = ($windowsSigningPolicy -eq "1")
+}
 $certB64 = $env:WINDOWS_SIGNING_CERT_BASE64
 $certPwd = $env:WINDOWS_SIGNING_CERT_PASSWORD
 $timestampUrl = if ($env:WINDOWS_TIMESTAMP_URL) { $env:WINDOWS_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
