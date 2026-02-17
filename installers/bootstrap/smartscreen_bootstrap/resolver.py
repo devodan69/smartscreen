@@ -102,3 +102,42 @@ def select_installer_asset(assets: list[Asset], target: PlatformTarget) -> Asset
 
     candidates.sort(key=lambda a: _rank(a.name), reverse=True)
     return candidates[0]
+
+
+def select_runtime_asset(assets: list[Asset], target: PlatformTarget) -> Asset:
+    """Prefer the main SmartScreen app package over bootstrap installer artifacts."""
+    suffix = expected_suffix(target)
+    os_name = target.os_name.lower()
+    arch = target.arch.lower()
+
+    def _is_candidate(a: Asset) -> bool:
+        lower = a.name.lower()
+        if not lower.endswith(suffix.lower()):
+            return False
+        if os_name not in lower:
+            return False
+        if arch in ("x64", "arm64"):
+            return arch in lower or "universal" in lower
+        return True
+
+    candidates = [a for a in assets if _is_candidate(a)]
+    if not candidates:
+        return select_asset(assets, target)
+
+    def _rank(name: str) -> tuple[int, int]:
+        lower = name.lower()
+        runtime_score = 0
+        if "installer" not in lower:
+            runtime_score += 12
+        if lower.startswith("smartscreen-"):
+            runtime_score += 8
+        if lower.startswith("smartscreen_"):
+            runtime_score += 6
+        if lower.startswith("smartscreen"):
+            runtime_score += 4
+
+        arch_score = 1 if arch in lower else 0
+        return (runtime_score, arch_score)
+
+    candidates.sort(key=lambda a: _rank(a.name), reverse=True)
+    return candidates[0]

@@ -5,7 +5,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "installers" / "bootstrap"))
 
-from smartscreen_bootstrap.resolver import Asset, resolve_target, select_asset, select_installer_asset
+from smartscreen_bootstrap.resolver import (
+    Asset,
+    resolve_target,
+    select_asset,
+    select_installer_asset,
+    select_runtime_asset,
+)
 
 
 class BootstrapResolverTests(unittest.TestCase):
@@ -31,6 +37,15 @@ class BootstrapResolverTests(unittest.TestCase):
         target = resolve_target("Windows", "AMD64")
         selected = select_installer_asset(assets, target)
         self.assertIn("installer", selected.name.lower())
+
+    def test_select_runtime_asset_prefers_main_app(self):
+        assets = [
+            Asset(name="SmartScreenInstaller-macos-arm64.dmg", url="https://example/installer.dmg"),
+            Asset(name="SmartScreen-macos-arm64.dmg", url="https://example/app.dmg"),
+        ]
+        target = resolve_target("Darwin", "arm64")
+        selected = select_runtime_asset(assets, target)
+        self.assertNotIn("installer", selected.name.lower())
 
 
 if __name__ == "__main__":

@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import platform
+import plistlib
+import shutil
 import ssl
 import subprocess
 import urllib.request
@@ -13,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .resolver import Asset, PlatformTarget, resolve_target, select_installer_asset
+from .resolver import Asset, PlatformTarget, resolve_target, select_runtime_asset
 
 try:
     import certifi
@@ -108,10 +110,61 @@ def run_installer(installer_path: Path, silent: bool = False) -> int:
             return subprocess.call([str(installer_path), "/VERYSILENT"])
         return subprocess.call([str(installer_path)])
     if system.startswith("darwin"):
+        if installer_path.suffix.lower() == ".dmg":
+            return _install_from_macos_dmg(installer_path)
         return subprocess.call(["open", str(installer_path)])
 
     installer_path.chmod(installer_path.stat().st_mode | 0o111)
     return subprocess.call([str(installer_path)])
+
+
+def _install_from_macos_dmg(dmg_path: Path) -> int:
+    """Mount a macOS DMG, copy app bundle to Applications, and launch it."""
+    attach_cmd = ["hdiutil", "attach", "-nobrowse", "-readonly", "-plist", str(dmg_path)]
+    attach_output = subprocess.check_output(attach_cmd)
+    plist = plistlib.loads(attach_output)
+
+    mount_points: list[Path] = []
+    for ent in plist.get("system-entities", []):
+        mount = ent.get("mount-point")
+        if mount:
+            mount_points.append(Path(mount))
+
+    if not mount_points:
+        raise RuntimeError("Could not mount DMG: no mount point found")
+
+    mount_point = mount_points[0]
+    last_error: Exception | None = None
+    app_candidates = sorted(mount_point.glob("*.app"))
+    if not app_candidates:
+        # Fallback: open mounted DMG in Finder if app cannot be located.
+        subprocess.call(["open", str(mount_point)])
+        return 0
+
+    app_src = app_candidates[0]
+    target_dirs = [Path("/Applications"), Path.home() / "Applications"]
+
+    try:
+        for target_dir in target_dirs:
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+                target_app = target_dir / app_src.name
+                if target_app.exists():
+                    shutil.rmtree(target_app)
+                shutil.copytree(app_src, target_app, dirs_exist_ok=True)
+                subprocess.call(["xattr", "-dr", "com.apple.quarantine", str(target_app)])
+                subprocess.call(["open", str(target_app)])
+                return 0
+            except PermissionError as exc:
+                last_error = exc
+            except OSError as exc:
+                last_error = exc
+    finally:
+        subprocess.call(["hdiutil", "detach", str(mount_point), "-quiet"])
+
+    if last_error is not None:
+        raise RuntimeError(f"Install failed: {last_error}") from last_error
+    raise RuntimeError("Install failed: no writable Applications directory")
 
 
 @dataclass(frozen=True)
@@ -135,7 +188,7 @@ def download_installer(
     assets = fetch_release_assets(repo, version)
     progress(f"Detected target {target.os_name}/{target.arch}")
 
-    installer = select_installer_asset(assets, target)
+    installer = select_runtime_asset(assets, target)
     checksums_asset = find_checksums_asset(assets)
 
     destination_dir.mkdir(parents=True, exist_ok=True)
