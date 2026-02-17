@@ -23,6 +23,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       SMARTSCREEN_REQUIRE_SIGNING: ${{ vars.SMARTSCREEN_REQUIRE_SIGNING || '0' }}
+      WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+      WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+      WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+      APPLE_SIGNING_CERT_BASE64: ${{ secrets.APPLE_SIGNING_CERT_BASE64 }}
+      APPLE_SIGNING_CERT_PASSWORD: ${{ secrets.APPLE_SIGNING_CERT_PASSWORD }}
+      APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+      APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      LINUX_SIGNING_KEY_BASE64: ${{ secrets.LINUX_SIGNING_KEY_BASE64 }}
+      LINUX_SIGNING_FINGERPRINT: ${{ secrets.LINUX_SIGNING_FINGERPRINT }}
+      LINUX_SIGNING_KEY_PASSPHRASE: ${{ secrets.LINUX_SIGNING_KEY_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,11 +57,7 @@ jobs:
           chmod +x installers/linux/appimagetool
 
       - name: Install Apple signing certificate
-        if: runner.os == 'macOS' && secrets.APPLE_SIGNING_CERT_BASE64 != '' && secrets.APPLE_SIGNING_CERT_PASSWORD != '' && secrets.APPLE_KEYCHAIN_PASSWORD != ''
-        env:
-          APPLE_SIGNING_CERT_BASE64: ${{ secrets.APPLE_SIGNING_CERT_BASE64 }}
-          APPLE_SIGNING_CERT_PASSWORD: ${{ secrets.APPLE_SIGNING_CERT_PASSWORD }}
-          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        if: runner.os == 'macOS' && env.APPLE_SIGNING_CERT_BASE64 != '' && env.APPLE_SIGNING_CERT_PASSWORD != '' && env.APPLE_KEYCHAIN_PASSWORD != ''
         run: |
           set -euo pipefail
           CERT_PATH="$RUNNER_TEMP/smartscreen-cert.p12"
@@ -67,15 +76,11 @@ jobs:
       - name: Build Windows artifacts
         if: runner.os == 'Windows'
         shell: pwsh
-        env:
-          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
-          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
-          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
         run: |
           ./installers/windows/build_windows.ps1
 
       - name: Verify Windows signatures
-        if: runner.os == 'Windows' && secrets.WINDOWS_SIGNING_CERT_BASE64 != ''
+        if: runner.os == 'Windows' && env.WINDOWS_SIGNING_CERT_BASE64 != ''
         shell: pwsh
         run: |
           $files = Get-ChildItem dist/release/*.exe
@@ -89,14 +94,14 @@ jobs:
       - name: Build macOS artifacts
         if: runner.os == 'macOS'
         env:
-          SMARTSCREEN_MAC_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SMARTSCREEN_MAC_SIGN_IDENTITY: ${{ env.APPLE_SIGN_IDENTITY }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ env.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
         run: bash installers/macos/build_macos.sh
 
       - name: Verify macOS signatures and notarization
-        if: runner.os == 'macOS' && secrets.APPLE_SIGN_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '' && secrets.APPLE_TEAM_ID != ''
+        if: runner.os == 'macOS' && env.APPLE_SIGN_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != ''
         run: |
           set -euo pipefail
           codesign --verify --deep --strict dist/SmartScreen.app
@@ -107,16 +112,10 @@ jobs:
 
       - name: Build Linux artifacts
         if: runner.os == 'Linux'
-        env:
-          LINUX_SIGNING_KEY_BASE64: ${{ secrets.LINUX_SIGNING_KEY_BASE64 }}
-          LINUX_SIGNING_FINGERPRINT: ${{ secrets.LINUX_SIGNING_FINGERPRINT }}
-          LINUX_SIGNING_KEY_PASSPHRASE: ${{ secrets.LINUX_SIGNING_KEY_PASSPHRASE }}
         run: bash installers/linux/build_linux.sh
 
       - name: Verify Linux signatures
-        if: runner.os == 'Linux' && secrets.LINUX_SIGNING_KEY_BASE64 != ''
-        env:
-          LINUX_SIGNING_KEY_BASE64: ${{ secrets.LINUX_SIGNING_KEY_BASE64 }}
+        if: runner.os == 'Linux' && env.LINUX_SIGNING_KEY_BASE64 != ''
         run: |
           set -euo pipefail
           export GNUPGHOME
