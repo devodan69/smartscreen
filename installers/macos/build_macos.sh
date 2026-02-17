@@ -15,9 +15,6 @@ mkdir -p dist/release
 app_dmg="dist/release/SmartScreen-macos-${arch}.dmg"
 installer_dmg="dist/release/SmartScreenInstaller-macos-${arch}.dmg"
 
-hdiutil create -volname "SmartScreen" -srcfolder dist/SmartScreen.app -ov -format UDZO "$app_dmg"
-hdiutil create -volname "SmartScreen Installer" -srcfolder dist/SmartScreenInstaller.app -ov -format UDZO "$installer_dmg"
-
 require_signing="${SMARTSCREEN_REQUIRE_SIGNING:-0}"
 identity="${SMARTSCREEN_MAC_SIGN_IDENTITY:-}"
 apple_id="${APPLE_ID:-}"
@@ -25,13 +22,24 @@ apple_password="${APPLE_APP_PASSWORD:-}"
 apple_team_id="${APPLE_TEAM_ID:-}"
 
 if [[ -n "$identity" ]]; then
+  # Sign app bundles before packaging so DMGs contain signed binaries.
   codesign --deep --force --options runtime --timestamp --sign "$identity" dist/SmartScreen.app
   codesign --deep --force --options runtime --timestamp --sign "$identity" dist/SmartScreenInstaller.app
-  codesign --force --timestamp --sign "$identity" "$app_dmg"
-  codesign --force --timestamp --sign "$identity" "$installer_dmg"
 
   codesign --verify --deep --strict dist/SmartScreen.app
   codesign --verify --deep --strict dist/SmartScreenInstaller.app
+elif [[ "$require_signing" == "1" ]]; then
+  echo "SMARTSCREEN_REQUIRE_SIGNING=1 but SMARTSCREEN_MAC_SIGN_IDENTITY missing" >&2
+  exit 1
+fi
+
+rm -f "$app_dmg" "$installer_dmg"
+hdiutil create -volname "SmartScreen" -srcfolder dist/SmartScreen.app -ov -format UDZO "$app_dmg"
+hdiutil create -volname "SmartScreen Installer" -srcfolder dist/SmartScreenInstaller.app -ov -format UDZO "$installer_dmg"
+
+if [[ -n "$identity" ]]; then
+  codesign --force --timestamp --sign "$identity" "$app_dmg"
+  codesign --force --timestamp --sign "$identity" "$installer_dmg"
 
   if [[ -n "$apple_id" && -n "$apple_password" && -n "$apple_team_id" ]]; then
     notarize_file() {
@@ -66,7 +74,4 @@ if [[ -n "$identity" ]]; then
     echo "SMARTSCREEN_REQUIRE_SIGNING=1 but notarization credentials missing" >&2
     exit 1
   fi
-elif [[ "$require_signing" == "1" ]]; then
-  echo "SMARTSCREEN_REQUIRE_SIGNING=1 but SMARTSCREEN_MAC_SIGN_IDENTITY missing" >&2
-  exit 1
 fi
