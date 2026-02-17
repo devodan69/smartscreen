@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
+import ssl
 import subprocess
 import urllib.request
 from dataclasses import dataclass
@@ -13,8 +15,39 @@ from typing import Callable
 
 from .resolver import Asset, PlatformTarget, resolve_target, select_installer_asset
 
+try:
+    import certifi
+except Exception:  # pragma: no cover - fallback when optional dependency unavailable
+    certifi = None
+
 
 ProgressCallback = Callable[[str], None]
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """Create TLS context for installer downloads with explicit CA handling."""
+    if os.environ.get("SMARTSCREEN_ALLOW_INSECURE_TLS", "").strip() == "1":
+        return ssl._create_unverified_context()
+
+    ca_bundle = os.environ.get("SMARTSCREEN_CA_BUNDLE", "").strip()
+    if ca_bundle:
+        return ssl.create_default_context(cafile=ca_bundle)
+
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+
+    return ssl.create_default_context()
+
+
+def _urlopen(url: str, timeout: int, accept: str = "*/*"):
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "SmartScreenInstaller/0.1 (+https://github.com/devodan69/smartscreen)",
+            "Accept": accept,
+        },
+    )
+    return urllib.request.urlopen(request, timeout=timeout, context=_build_ssl_context())
 
 
 def fetch_release_assets(repo: str, version: str) -> list[Asset]:
@@ -23,7 +56,7 @@ def fetch_release_assets(repo: str, version: str) -> list[Asset]:
     else:
         url = f"https://api.github.com/repos/{repo}/releases/tags/{version}"
 
-    with urllib.request.urlopen(url, timeout=30) as response:
+    with _urlopen(url, timeout=30, accept="application/vnd.github+json") as response:
         payload = json.loads(response.read().decode("utf-8"))
 
     return [Asset(name=item["name"], url=item["browser_download_url"]) for item in payload.get("assets", [])]
@@ -37,7 +70,7 @@ def find_checksums_asset(assets: list[Asset]) -> Asset | None:
 
 
 def download_file(url: str, dest: Path) -> Path:
-    with urllib.request.urlopen(url, timeout=180) as response:
+    with _urlopen(url, timeout=180) as response:
         dest.write_bytes(response.read())
     return dest
 
