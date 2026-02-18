@@ -2,8 +2,28 @@ param()
 
 $ErrorActionPreference = "Stop"
 
-python -m PyInstaller --noconfirm --onefile --windowed --name SmartScreen apps/desktop/smartscreen_app/__main__.py
-python -m PyInstaller --noconfirm --onefile --windowed --name SmartScreenInstaller installers/bootstrap/smartscreen_bootstrap/gui.py
+$commonAppArgs = @(
+  "--paths", "apps/desktop",
+  "--paths", "installers/bootstrap",
+  "--paths", "packages/core",
+  "--paths", "packages/display_protocol",
+  "--paths", "packages/renderer",
+  "--paths", "packages/telemetry",
+  "--collect-submodules", "smartscreen_app",
+  "--collect-submodules", "smartscreen_core",
+  "--collect-submodules", "smartscreen_display",
+  "--collect-submodules", "smartscreen_renderer",
+  "--collect-submodules", "smartscreen_telemetry",
+  "--collect-data", "smartscreen_app"
+)
+
+$commonInstallerArgs = @(
+  "--paths", "installers/bootstrap",
+  "--collect-submodules", "smartscreen_bootstrap"
+)
+
+python -m PyInstaller --noconfirm --onefile --windowed --name SmartScreen @commonAppArgs apps/desktop/smartscreen_app/__main__.py
+python -m PyInstaller --noconfirm --onefile --windowed --name SmartScreenInstaller @commonInstallerArgs installers/bootstrap/smartscreen_bootstrap/gui.py
 
 $archRaw = $env:PROCESSOR_ARCHITECTURE
 if ($archRaw -eq "AMD64") {

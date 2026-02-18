@@ -1,8 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python -m PyInstaller --noconfirm --windowed --name SmartScreen apps/desktop/smartscreen_app/__main__.py
-python -m PyInstaller --noconfirm --windowed --name SmartScreenInstaller installers/bootstrap/smartscreen_bootstrap/gui.py
+COMMON_APP_ARGS=(
+  --paths apps/desktop
+  --paths installers/bootstrap
+  --paths packages/core
+  --paths packages/display_protocol
+  --paths packages/renderer
+  --paths packages/telemetry
+  --collect-submodules smartscreen_app
+  --collect-submodules smartscreen_core
+  --collect-submodules smartscreen_display
+  --collect-submodules smartscreen_renderer
+  --collect-submodules smartscreen_telemetry
+  --collect-data smartscreen_app
+)
+
+COMMON_INSTALLER_ARGS=(
+  --paths installers/bootstrap
+  --collect-submodules smartscreen_bootstrap
+)
+
+python -m PyInstaller --noconfirm --windowed --name SmartScreen "${COMMON_APP_ARGS[@]}" apps/desktop/smartscreen_app/__main__.py
+python -m PyInstaller --noconfirm --windowed --name SmartScreenInstaller "${COMMON_INSTALLER_ARGS[@]}" installers/bootstrap/smartscreen_bootstrap/gui.py
 
 arch_raw="$(uname -m)"
 case "$arch_raw" in
